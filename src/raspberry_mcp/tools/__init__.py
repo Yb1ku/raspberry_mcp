@@ -11,6 +11,7 @@ def register_tools(server: MCPServer) -> None:
     from raspberry_mcp.tools.service_status import register_tools as register_status_tools
     from raspberry_mcp.tools.service_logs import register_tools as register_log_tools
     from raspberry_mcp.tools.service_resources import register_tools as register_resource_tools
+    from raspberry_mcp.tools.service_actions import register_tools as register_action_tools
     from raspberry_mcp.tools.storage import register_tools as register_storage_tools
 
     register_health_tools(server)
@@ -20,3 +21,4 @@ def register_tools(server: MCPServer) -> None:
     register_status_tools(server)
     register_log_tools(server)
     register_resource_tools(server)
+    register_action_tools(server)

@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from raspberry_mcp.tools._docker import run_docker
 from raspberry_mcp.tools.common import READ_ONLY_ANNOTATIONS
+from raspberry_mcp.tools.service_actions import allowed_actions_for_service
 
 
 _DISCOVERY_FORMAT = (
@@ -65,8 +66,7 @@ def _service_info(container: dict[str, Any], now: datetime) -> DiscoveredService
         health=container.get("health"),
         started_at=started_at,
         time_active_seconds=elapsed,
-        # No control tools are implemented yet. Never advertise unsupported actions.
-        allowed_actions=[],
+        allowed_actions=allowed_actions_for_service(container["name"].removeprefix("/")),
         network_mode=container["network_mode"],
         ports=container.get("ports") or {},
     )
@@ -100,7 +100,7 @@ def register_tools(server: MCPServer) -> None:
         Returns exact names to pass to service tools, state, optional healthcheck,
         last start timestamp and elapsed seconds since the current start.
         Elapsed time includes any pauses since that start and is null unless
-        running. Actions are empty until control tools and authorization exist.
+        running. Actions reflect the configured lifecycle tools for each service.
         Docker access failures are tool errors, not an empty discovery result.
         """
         return _discover_services()
