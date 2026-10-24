@@ -34,6 +34,28 @@ class ServiceActionTests(unittest.TestCase):
         run.assert_called_once_with(["container", "stop", "jellyfin"])
         self.assertEqual(result["status"], "exited")
 
+    @patch("raspberry_mcp.tools.service_actions.inspect_service")
+    @patch("raspberry_mcp.tools.service_actions.run_docker")
+    def test_restart_stopped_service_must_end_running(self, run, inspect):
+        inspect.side_effect = [{"status": "exited"}, {"status": "running"}]
+
+        result = _run_lifecycle_action("jellyfin", "restart")
+
+        self.assertTrue(result["changed"])
+        self.assertEqual(result["previous_status"], "exited")
+        self.assertEqual(result["status"], "running")
+        run.assert_called_once_with(["container", "restart", "jellyfin"])
+
+    @patch("raspberry_mcp.tools.service_actions.inspect_service")
+    @patch("raspberry_mcp.tools.service_actions.run_docker")
+    def test_action_fails_when_post_state_is_not_reached(self, run, inspect):
+        inspect.side_effect = [{"status": "exited"}, {"status": "exited"}]
+
+        with self.assertRaisesRegex(ValueError, "expected state 'running'"):
+            _run_lifecycle_action("jellyfin", "start")
+
+        run.assert_called_once_with(["container", "start", "jellyfin"])
+
     def test_policy_can_limit_actions_and_services(self):
         os.environ["RASPBERRY_MCP_ENABLED_ACTIONS"] = "start,restart"
         os.environ["RASPBERRY_MCP_ALLOWED_SERVICES"] = "jellyfin"

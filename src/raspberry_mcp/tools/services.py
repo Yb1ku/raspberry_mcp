@@ -100,7 +100,7 @@ def register_tools(server: MCPServer) -> None:
         Returns exact names to pass to service tools, state, optional healthcheck,
         last start timestamp and elapsed seconds since the current start.
         Elapsed time includes any pauses since that start and is null unless
-        running. Actions are empty until control tools and authorization exist.
+        running. Actions reflect the configured lifecycle tools for each service.
         Docker access failures are tool errors, not an empty discovery result.
         """
         return _discover_services()

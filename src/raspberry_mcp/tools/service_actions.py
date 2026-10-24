@@ -1,6 +1,7 @@
 """Controlled lifecycle actions for application containers."""
 
 import os
+import threading
 from datetime import datetime, timezone
 from typing import Any
 
@@ -27,6 +28,9 @@ RESTART_ANNOTATIONS = ToolAnnotations(
     idempotentHint=False,
     openWorldHint=False,
 )
+
+_SERVICE_LOCKS: dict[str, threading.Lock] = {}
+_SERVICE_LOCKS_GUARD = threading.Lock()
 
 
 def _configured_values(name: str) -> set[str] | None:
@@ -67,6 +71,12 @@ def allowed_actions_for_service(service_name: str) -> list[str]:
     return enabled_actions()
 
 
+def _service_lock(service_name: str) -> threading.Lock:
+    """Get the process-local lifecycle lock for one service."""
+    with _SERVICE_LOCKS_GUARD:
+        return _SERVICE_LOCKS.setdefault(service_name, threading.Lock())
+
+
 def _action_result(
     service_name: str,
     action: str,
@@ -88,20 +98,32 @@ def _action_result(
 
 def _run_lifecycle_action(service_name: str, action: str) -> dict[str, Any]:
     _check_authorized(service_name, action)
-    previous = inspect_service(service_name)
-    previous_status = previous["status"]
+    with _service_lock(service_name):
+        previous = inspect_service(service_name)
+        previous_status = previous["status"]
 
-    if action == "start" and previous_status == "running":
-        return _action_result(
-            service_name, action, previous_status, changed=False, current=previous
-        )
-    if action == "stop" and previous_status != "running":
-        return _action_result(
-            service_name, action, previous_status, changed=False, current=previous
-        )
+        if action == "start" and previous_status == "running":
+            return _action_result(
+                service_name, action, previous_status, changed=False, current=previous
+            )
+        if action == "stop" and previous_status != "running":
+            return _action_result(
+                service_name, action, previous_status, changed=False, current=previous
+            )
 
-    run_docker(["container", action, service_name])
-    return _action_result(service_name, action, previous_status, changed=True)
+        run_docker(["container", action, service_name])
+        current = inspect_service(service_name)
+        current_status = current["status"]
+        expected_running = action in {"start", "restart"}
+        if (current_status == "running") != expected_running:
+            expected = "running" if expected_running else "stopped"
+            raise ValueError(
+                f"Service {service_name!r} did not reach the expected state "
+                f"{expected!r}; current state is {current_status!r}."
+            )
+        return _action_result(
+            service_name, action, previous_status, changed=True, current=current
+        )
 
 
 def register_tools(server: MCPServer) -> None:
