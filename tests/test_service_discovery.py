@@ -17,11 +17,11 @@ class ServiceDiscoveryTests(unittest.TestCase):
             "network_mode": "host", "ports": None,
         }
 
-    def test_running_container_elapsed_time_and_no_unsupported_actions(self):
+    def test_running_container_elapsed_time_and_configured_actions(self):
         service = _service_info(self.container, self.now)
         self.assertEqual(service.name, "jellyfin")
         self.assertEqual(service.time_active_seconds, 3600)
-        self.assertEqual(service.allowed_actions, [])
+        self.assertEqual(service.allowed_actions, ["start", "stop", "restart"])
         self.assertEqual(service.ports, {})
 
     def test_stopped_container_keeps_last_start_but_has_no_active_time(self):

@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from raspberry_mcp.tools._docker import run_docker
 from raspberry_mcp.tools.common import READ_ONLY_ANNOTATIONS
+from raspberry_mcp.tools.service_actions import allowed_actions_for_service
 
 
 _DISCOVERY_FORMAT = (
@@ -65,8 +66,7 @@ def _service_info(container: dict[str, Any], now: datetime) -> DiscoveredService
         health=container.get("health"),
         started_at=started_at,
         time_active_seconds=elapsed,
-        # No control tools are implemented yet. Never advertise unsupported actions.
-        allowed_actions=[],
+        allowed_actions=allowed_actions_for_service(container["name"].removeprefix("/")),
         network_mode=container["network_mode"],
         ports=container.get("ports") or {},
     )

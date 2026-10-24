@@ -55,9 +55,9 @@ reaches MVP.
   `time_active_seconds`, `allowed_actions`, network mode and port bindings.
   `started_at` is the last start timestamp, or null if never started. Active
   time is elapsed seconds since the current start (including pauses), or null
-  unless running. `allowed_actions` is currently empty because control tools
-  and their authorization have not been implemented. This replaces `list_services`.
-  The server process needs permission to query the Docker daemon.
+  unless running. `allowed_actions` lists the configured lifecycle actions
+  (`start`, `stop`, and `restart`). This replaces `list_services`. The server
+  process needs permission to query and control the Docker daemon.
 - `get_service_status(service_name)`: selected state fields, optional healthcheck
   status, restart count, exit code, OOM flag, and start/finish timestamps. Also
   supports stopped containers. It does not expose environment variables.
@@ -74,6 +74,22 @@ Use exact container names from `discover_services`, such as `jellyfin` and
 `qbittorrent`. Docker queries time out after 15 seconds and return MCP tool
 errors for missing containers or unavailable Docker access. A service without
 a configured Docker healthcheck has `health: null`.
+
+## Service actions
+
+The lifecycle tools `start_service`, `stop_service`, and `restart_service` use
+the exact container names returned by `discover_services`. By default all three
+actions are enabled and any container can be targeted. Restrict them with:
+
+```sh
+export RASPBERRY_MCP_ENABLED_ACTIONS="start,stop,restart"
+export RASPBERRY_MCP_ALLOWED_SERVICES="jellyfin,qbittorrent"
+```
+
+An omitted variable means unrestricted configuration for that setting. The
+actions never accept arbitrary Docker arguments or shell commands. `start` and
+`stop` are safe no-ops when the requested state is already in effect; every
+action returns the previous and resulting container state.
 
 Storage paths default to `/` for internal storage and `/mnt/media` for external
 storage. Override them with `RASPBERRY_MCP_INTERNAL_STORAGE_PATH` and
