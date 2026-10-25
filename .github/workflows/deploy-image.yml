@@ -1,0 +1,120 @@
+name: Deploy immutable image
+
+on:
+  workflow_call:
+    inputs:
+      target:
+        required: true
+        type: string
+      image:
+        required: true
+        type: string
+      revision:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: read
+  deployments: write
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, Linux, ARM64, raspberry-mcp-deploy]
+    timeout-minutes: 15
+    # Shared with both callers; never interrupt a deployment for a newer push.
+    concurrency:
+      group: raspberry-mcp-deployments
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+      DEPLOY_IMAGE: ${{ inputs.image }}
+      DEPLOY_REVISION: ${{ inputs.revision }}
+      DEPLOY_TARGET: ${{ inputs.target }}
+      DEPLOY_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Set temporary registry credential directory
+        run: echo "DOCKER_CONFIG=$RUNNER_TEMP/docker-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v5
+        with:
+          # Run deployment tooling from the workflow commit, not the image's source tree.
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Validate target and skip superseded development builds
+        id: validate
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from scripts.deployment_record import api, output
+          target = os.environ['DEPLOY_TARGET']
+          if target not in {'dev', 'prod'}:
+              raise SystemExit('Invalid deployment target')
+          current = api('git/ref/heads/main')['object']['sha']
+          output('deploy', 'false' if target == 'dev' and current != os.environ['DEPLOY_REVISION'] else 'true')
+          output('environment', 'development' if target == 'dev' else 'production')
+          PY
+
+      - name: Authenticate to GHCR with the job token
+        if: steps.validate.outputs.deploy == 'true'
+        env:
+          REGISTRY_TOKEN: ${{ github.token }}
+          REGISTRY_USER: ${{ github.actor }}
+        run: |
+          mkdir -p "$DOCKER_CONFIG"
+          printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io --username "$REGISTRY_USER" --password-stdin
+
+      - name: Record deployment
+        if: steps.validate.outputs.deploy == 'true'
+        id: record
+        env:
+          DEPLOY_ENVIRONMENT: ${{ steps.validate.outputs.environment }}
+        run: python3 scripts/deployment_record.py begin
+
+      - name: Deploy and verify MCP (restore previous service on failure)
+        if: steps.validate.outputs.deploy == 'true'
+        id: deploy
+        run: |
+          repository="ghcr.io/${GITHUB_REPOSITORY,,}"
+          python3 scripts/deploy.py "$DEPLOY_TARGET" "$DEPLOY_IMAGE" "$DEPLOY_REVISION" --repository "$repository"
+
+      - name: Finish deployment record
+        if: always() && steps.record.outputs.deployment_id != ''
+        env:
+          DEPLOYMENT_ID: ${{ steps.record.outputs.deployment_id }}
+          DEPLOY_STATE: ${{ steps.deploy.outcome == 'success' && 'success' || 'failure' }}
+        run: python3 scripts/deployment_record.py finish
+
+      - name: Write deployment summary
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          path = Path.home() / '.local/state/raspberry-mcp' / (os.environ['DEPLOY_TARGET'] + '.json')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              summary.write('## Active deployment\n\n')
+              if path.exists():
+                  state = json.loads(path.read_text())
+                  summary.write(f"Environment: `{state['environment']}`\n\nImage: `{state['image']}`\n\nCommit: `{state['revision']}`\n\n")
+                  if state.get('previous'):
+                      summary.write(f"Previous image: `{state['previous']['image']}`\n")
+              else:
+                  summary.write('No container deployment recorded; the legacy service may still be active.\n')
+          PY
+
+      - name: Remove temporary registry credentials
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import os, shutil
+          from pathlib import Path
+          path = Path(os.environ['DOCKER_CONFIG']).resolve()
+          base = Path(os.environ['RUNNER_TEMP']).resolve()
+          if path.parent != base or not path.name.startswith('docker-'):
+              raise SystemExit('Unexpected temporary credential directory')
+          shutil.rmtree(path, ignore_errors=True)
+          PY

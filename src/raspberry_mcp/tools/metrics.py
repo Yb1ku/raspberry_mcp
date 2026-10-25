@@ -4,18 +4,18 @@ import os
 import re
 import subprocess
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
 import psutil
 from mcp.server import MCPServer
 
 from raspberry_mcp.tools.common import READ_ONLY_ANNOTATIONS
+from raspberry_mcp.host import host_path
 
 
 def _read_cpu_temperature() -> dict[str, Any]:
     """Read a Linux thermal zone, then fall back to psutil or vcgencmd."""
-    zones = sorted(Path("/sys/class/thermal").glob("thermal_zone*"))
+    zones = sorted(host_path("/sys/class/thermal").glob("thermal_zone*"))
     readings: list[tuple[str, float]] = []
     for zone in zones:
         try:
