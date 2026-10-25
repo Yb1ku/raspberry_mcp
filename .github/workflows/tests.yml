@@ -30,3 +30,28 @@ jobs:
 
       - name: Run tests
         run: uv run python -m unittest discover -s tests -v
+
+  container:
+    name: Container startup and MCP authentication
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Build smoke-test image
+        run: docker build --build-arg "REVISION=$GITHUB_SHA" -t raspberry-mcp:ci .
+      - name: Verify authenticated MCP readiness
+        run: |
+          export RASPBERRY_MCP_TOKEN="$(openssl rand -hex 32)"
+          docker run --detach --name raspberry-mcp-ci --env RASPBERRY_MCP_TOKEN raspberry-mcp:ci
+          for attempt in $(seq 1 20); do
+            if docker exec raspberry-mcp-ci python -m raspberry_mcp.healthcheck; then
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
+      - name: Stop smoke-test container
+        if: always()
+        run: docker rm -f raspberry-mcp-ci || true

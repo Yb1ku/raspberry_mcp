@@ -5,6 +5,7 @@ import os
 import uvicorn
 
 from raspberry_mcp.server import create_app
+from raspberry_mcp.host import configure_host_metrics
 
 
 TOKEN_ENV_VAR = "RASPBERRY_MCP_TOKEN"
@@ -26,4 +27,5 @@ def main() -> None:
     if not 1 <= port <= 65535:
         raise SystemExit("RASPBERRY_MCP_PORT must be between 1 and 65535.")
 
+    configure_host_metrics()
     uvicorn.run(create_app(token, host), host=host, port=port, log_level="info")

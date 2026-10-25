@@ -3,6 +3,16 @@
 MCP server for controlling and monitoring the Raspberry Pi. The server uses
 Streamable HTTP and requires a bearer token for every HTTP request.
 
+## Development and production deployments
+
+Work in feature branches and merge PRs into `main`. GitHub Actions builds an
+ARM64 image and deploys it to the dev environment. A separate manual workflow
+promotes an exact previously tested image digest to production, with deployment
+history and rollback. Neither deployment modifies your source checkout.
+
+See [deployment setup and operations](docs/deployments.md) for runner setup,
+first-time activation, promotion and checking the currently running version.
+
 ## Run locally
 
 Generate a long random token and provide it through the environment. Keep the

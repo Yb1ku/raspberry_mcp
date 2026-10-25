@@ -1,0 +1,75 @@
+name: Build image and deploy dev
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.image.outputs.repository }}@${{ steps.build.outputs.digest }}
+      revision: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.13.3'
+      - name: Test the merged commit
+        run: |
+          uv sync --locked
+          uv run python -m unittest discover -s tests -v
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Set image repository
+        id: image
+        run: echo "repository=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        id: build
+        with:
+          context: .
+          platforms: linux/arm64
+          push: true
+          tags: ${{ steps.image.outputs.repository }}:sha-${{ github.sha }}
+          build-args: |
+            REVISION=${{ github.sha }}
+            SOURCE=${{ github.server_url }}/${{ github.repository }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Record published image
+        env:
+          IMAGE: ${{ steps.image.outputs.repository }}@${{ steps.build.outputs.digest }}
+        run: |
+          printf '## Published ARM64 image\n\n`%s`\n\nSource commit: `%s`\n' "$IMAGE" "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-dev:
+    needs: build
+    if: vars.RASPBERRY_MCP_DEPLOY_ENABLED == 'true'
+    permissions:
+      contents: read
+      packages: read
+      deployments: write
+    uses: ./.github/workflows/deploy-image.yml
+    with:
+      target: dev
+      image: ${{ needs.build.outputs.image }}
+      revision: ${{ needs.build.outputs.revision }}

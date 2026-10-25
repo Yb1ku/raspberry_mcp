@@ -1,0 +1,44 @@
+name: Promote image to production
+
+on:
+  workflow_dispatch:
+    inputs:
+      image:
+        description: 'Full GHCR image@sha256:digest from a successful dev deployment (also accepts older images for rollback)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  deployments: read
+
+jobs:
+  resolve:
+    if: github.ref == 'refs/heads/main' && vars.RASPBERRY_MCP_DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      image: ${{ steps.resolve.outputs.image }}
+      revision: ${{ steps.resolve.outputs.revision }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Resolve image tested in development
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPLOY_IMAGE: ${{ inputs.image }}
+        run: python3 scripts/deployment_record.py resolve
+
+  promote:
+    needs: resolve
+    permissions:
+      contents: read
+      packages: read
+      deployments: write
+    uses: ./.github/workflows/deploy-image.yml
+    with:
+      target: prod
+      image: ${{ needs.resolve.outputs.image }}
+      revision: ${{ needs.resolve.outputs.revision }}
