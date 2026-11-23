@@ -12,6 +12,9 @@ history and rollback. Neither deployment modifies your source checkout.
 
 See [deployment setup and operations](docs/deployments.md) for runner setup,
 first-time activation, promotion and checking the currently running version.
+See [the diagnostic contract and Pi verification guide](docs/diagnostics.md)
+for the read-only MCP tools, response shapes, limits, and the MVP acceptance
+checklist.
 
 ## Run locally
 
