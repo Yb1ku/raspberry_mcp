@@ -17,6 +17,16 @@ REVISION = "b" * 40
 
 
 class DeploymentTests(unittest.TestCase):
+    def test_deployment_script_can_start_from_repository_checkout(self):
+        result = subprocess.run(
+            ["python3", "scripts/deploy.py", "--help"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Deploy an immutable image", result.stdout)
+
     def exercise(self, fail_on: str | None = None, legacy: bool = False):
         containers = (
             {}
