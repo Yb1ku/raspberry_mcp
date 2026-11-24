@@ -14,6 +14,11 @@ from raspberry_mcp.tools._docker import ServiceName, inspect_service, run_docker
 ENABLED_ACTIONS_ENV_VAR = "RASPBERRY_MCP_ENABLED_ACTIONS"
 ALLOWED_SERVICES_ENV_VAR = "RASPBERRY_MCP_ALLOWED_SERVICES"
 SUPPORTED_ACTIONS = ("start", "stop", "restart")
+_DOCKER_ACTION_COMMANDS = {
+    "start": ["container", "start"],
+    "stop": ["container", "stop"],
+    "restart": ["container", "restart"],
+}
 
 START_STOP_ANNOTATIONS = ToolAnnotations(
     readOnlyHint=False,
@@ -33,19 +38,15 @@ _SERVICE_LOCKS: dict[str, threading.Lock] = {}
 _SERVICE_LOCKS_GUARD = threading.Lock()
 
 
-def _configured_values(name: str) -> set[str] | None:
-    """Return configured comma-separated values, or None when unrestricted."""
-    raw = os.environ.get(name)
-    if raw is None or not raw.strip():
-        return None
+def _configured_values(name: str) -> set[str]:
+    """Return configured values; missing or blank configuration denies access."""
+    raw = os.environ.get(name, "")
     return {value.strip() for value in raw.split(",") if value.strip()}
 
 
 def enabled_actions() -> list[str]:
     """Return lifecycle actions enabled by configuration."""
     configured = _configured_values(ENABLED_ACTIONS_ENV_VAR)
-    if configured is None:
-        return list(SUPPORTED_ACTIONS)
     unknown = configured - set(SUPPORTED_ACTIONS)
     if unknown:
         raise ValueError(
@@ -57,7 +58,7 @@ def enabled_actions() -> list[str]:
 
 def _check_authorized(service_name: str, action: str) -> None:
     allowed_services = _configured_values(ALLOWED_SERVICES_ENV_VAR)
-    if allowed_services is not None and service_name not in allowed_services:
+    if service_name not in allowed_services:
         raise ValueError(f"Service {service_name!r} is not allowed for lifecycle actions.")
     if action not in enabled_actions():
         raise ValueError(f"Action {action!r} is not enabled for this MCP server.")
@@ -66,7 +67,7 @@ def _check_authorized(service_name: str, action: str) -> None:
 def allowed_actions_for_service(service_name: str) -> list[str]:
     """Return enabled lifecycle actions for a specific service."""
     allowed_services = _configured_values(ALLOWED_SERVICES_ENV_VAR)
-    if allowed_services is not None and service_name not in allowed_services:
+    if service_name not in allowed_services:
         return []
     return enabled_actions()
 
@@ -111,7 +112,9 @@ def _run_lifecycle_action(service_name: str, action: str) -> dict[str, Any]:
                 service_name, action, previous_status, changed=False, current=previous
             )
 
-        run_docker(["container", action, service_name])
+        # Keep the Docker command fixed; policy validation must never become
+        # shell-like command construction if this function is reused later.
+        run_docker([*_DOCKER_ACTION_COMMANDS[action], service_name])
         current = inspect_service(service_name)
         current_status = current["status"]
         expected_running = action in {"start", "restart"}

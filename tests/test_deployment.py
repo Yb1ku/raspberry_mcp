@@ -66,7 +66,9 @@ class DeploymentTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / "prod.env").write_text("RASPBERRY_MCP_TOKEN=test-only\n")
+            (root / "prod.env").write_text(
+                "RASPBERRY_MCP_TOKEN=correct-horse-battery-staple-raspberry-2026\n"
+            )
             (root / "prod.env").chmod(0o600)
             with (
                 patch.object(deploy, "run", side_effect=run),
@@ -137,6 +139,18 @@ class DeploymentTests(unittest.TestCase):
                     Path("/unused"),
                 )
             run.assert_not_called()
+
+    def test_weak_token_is_rejected_before_docker_access(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "prod.env").write_text("RASPBERRY_MCP_TOKEN=weak\n")
+            (root / "prod.env").chmod(0o600)
+            with patch.object(deploy, "run") as run:
+                with self.assertRaisesRegex(ValueError, "at least 32 characters"):
+                    deploy.deploy(
+                        "prod", IMAGE, REVISION, REPOSITORY, root / "state", root
+                    )
+                run.assert_not_called()
 
 
 class PromotionEligibilityTests(unittest.TestCase):

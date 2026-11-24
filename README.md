@@ -12,20 +12,27 @@ history and rollback. Neither deployment modifies your source checkout.
 
 See [deployment setup and operations](docs/deployments.md) for runner setup,
 first-time activation, promotion and checking the currently running version.
+See [the diagnostic contract and Pi verification guide](docs/diagnostics.md)
+for the read-only MCP tools, response shapes, limits, and the MVP acceptance
+checklist.
 
 ## Run locally
 
-Generate a long random token and provide it through the environment. Keep the
-token out of the repository and do not paste it into logs or chat:
+Generate a long random token and provide it through the private runtime
+environment. The server rejects missing, blank, whitespace-containing, short,
+or obviously repetitive values. Keep the token out of the repository and do
+not paste it into logs or chat:
 
 ```sh
 export RASPBERRY_MCP_TOKEN="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
 uv run raspberry-mcp
 ```
 
-The server listens at `http://127.0.0.1:8000/mcp` by default. It exits with an
-error if `RASPBERRY_MCP_TOKEN` is missing or blank. Requests without a matching
-`Authorization: Bearer <token>` header receive HTTP 401.
+The server listens at `http://127.0.0.1:8000/mcp` by default. It exits with a
+generic configuration error if `RASPBERRY_MCP_TOKEN` is missing or weak;
+neither the token nor its value is included in that error. Requests without a
+matching `Authorization: Bearer <token>` header receive HTTP 401 without
+echoing credentials.
 
 To accept connections from another device on a trusted network, set
 `RASPBERRY_MCP_HOST` to the Pi's private network address (or `0.0.0.0`) and
@@ -52,7 +59,10 @@ configuration.
 
 This initial shared-token authentication does not identify individual clients
 or provide per-tool permissions. Those can be added with OAuth when the server
-reaches MVP.
+reaches MVP. For container deployments, the launcher explicitly sets the
+container listener to `0.0.0.0` so a published host port works; use a private
+firewall or encrypted/private network and do not publish the port to an
+untrusted network.
 
 ## Read-only tools
 
@@ -88,18 +98,23 @@ a configured Docker healthcheck has `health: null`.
 ## Service actions
 
 The lifecycle tools `start_service`, `stop_service`, and `restart_service` use
-the exact container names returned by `discover_services`. By default all three
-actions are enabled and any container can be targeted. Restrict them with:
+the exact container names returned by `discover_services`. They are disabled by
+default. Enable only the actions and containers needed by setting both:
 
 ```sh
 export RASPBERRY_MCP_ENABLED_ACTIONS="start,stop,restart"
 export RASPBERRY_MCP_ALLOWED_SERVICES="jellyfin,qbittorrent"
 ```
 
-An omitted variable means unrestricted configuration for that setting. The
-actions never accept arbitrary Docker arguments or shell commands. `start` and
+An omitted or blank variable denies that capability; both variables must be
+configured explicitly for an action to be usable. The actions never accept
+arbitrary Docker arguments or shell commands. `start` and
 `stop` are safe no-ops when the requested state is already in effect; every
-action returns the previous and resulting container state.
+action returns the previous and resulting container state. Operations targeting
+the same service are serialized within the MCP process, and the resulting state
+is checked after every transition. Docker failures, including timeouts, are
+returned as tool errors; error text is sanitized to avoid exposing common
+secret-like values from the Docker CLI.
 
 Storage paths default to `/` for internal storage and `/mnt/media` for external
 storage. Override them with `RASPBERRY_MCP_INTERNAL_STORAGE_PATH` and

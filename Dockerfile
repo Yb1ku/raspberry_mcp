@@ -15,7 +15,6 @@ LABEL org.opencontainers.image.source=$SOURCE \
       org.opencontainers.image.revision=$REVISION
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
-    RASPBERRY_MCP_HOST=0.0.0.0 \
     RASPBERRY_MCP_REVISION=$REVISION
 HEALTHCHECK --interval=15s --timeout=12s --start-period=20s --retries=3 \
     CMD ["python", "-m", "raspberry_mcp.healthcheck"]
