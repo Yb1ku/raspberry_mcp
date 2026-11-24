@@ -41,6 +41,23 @@ class DockerQueryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "timed out"):
             run_docker(["container", "stats"])
 
+    @patch("raspberry_mcp.tools._docker.subprocess.run")
+    def test_docker_error_redacts_secret_like_values(self, run):
+        run.return_value = subprocess.CompletedProcess(
+            ["docker"],
+            1,
+            stdout="",
+            stderr="failed password=super-secret token:top-secret Bearer abc123",
+        )
+
+        with self.assertRaises(ValueError) as error:
+            run_docker(["container", "start", "jellyfin"])
+
+        self.assertNotIn("super-secret", str(error.exception))
+        self.assertNotIn("top-secret", str(error.exception))
+        self.assertNotIn("abc123", str(error.exception))
+        self.assertIn("[REDACTED]", str(error.exception))
+
 
 if __name__ == "__main__":
     unittest.main()

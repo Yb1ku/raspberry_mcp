@@ -14,6 +14,11 @@ from raspberry_mcp.tools._docker import ServiceName, inspect_service, run_docker
 ENABLED_ACTIONS_ENV_VAR = "RASPBERRY_MCP_ENABLED_ACTIONS"
 ALLOWED_SERVICES_ENV_VAR = "RASPBERRY_MCP_ALLOWED_SERVICES"
 SUPPORTED_ACTIONS = ("start", "stop", "restart")
+_DOCKER_ACTION_COMMANDS = {
+    "start": ["container", "start"],
+    "stop": ["container", "stop"],
+    "restart": ["container", "restart"],
+}
 
 START_STOP_ANNOTATIONS = ToolAnnotations(
     readOnlyHint=False,
@@ -111,7 +116,9 @@ def _run_lifecycle_action(service_name: str, action: str) -> dict[str, Any]:
                 service_name, action, previous_status, changed=False, current=previous
             )
 
-        run_docker(["container", action, service_name])
+        # Keep the Docker command fixed; policy validation must never become
+        # shell-like command construction if this function is reused later.
+        run_docker([*_DOCKER_ACTION_COMMANDS[action], service_name])
         current = inspect_service(service_name)
         current_status = current["status"]
         expected_running = action in {"start", "restart"}
