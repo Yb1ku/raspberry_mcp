@@ -9,10 +9,16 @@ from pathlib import Path
 import re
 import signal
 import subprocess
+import sys
 import time
 from datetime import datetime, timezone
 
-from raspberry_mcp.auth import TOKEN_ENV_VAR, validate_token
+# This script runs directly on the self-hosted runner, before the project is
+# installed. Keep the deployment entry point independent of the runner's
+# current working directory and Python import path.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from raspberry_mcp.token_policy import TOKEN_ENV_VAR, validate_token  # noqa: E402
 
 
 def run(*args: str, check: bool = True) -> subprocess.CompletedProcess:
