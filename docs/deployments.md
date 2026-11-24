@@ -56,8 +56,10 @@ The Docker socket grants control of the Pi's containers. Use
 `RASPBERRY_MCP_ALLOWED_SERVICES` to restrict lifecycle actions to the application
 containers you intend to control. Both instances share the same Docker daemon.
 For example, dev can target only a disposable test container. An empty action or
-service variable currently means unrestricted, not disabled. Tokens are never
-baked into images or workflow artifacts.
+service variable means that lifecycle capability is disabled. Tokens are never
+baked into images or workflow artifacts. The deployment rejects a missing, blank,
+whitespace-containing, short, or obviously repetitive token before it contacts
+Docker.
 
 ## First-time activation
 
@@ -84,9 +86,13 @@ GitHub repository settings, or replace the existing systemd services.
    legacy services during the first migration. The deployment account must have
    Docker access and noninteractive sudo. Do not assign PR jobs to this runner.
    This design assumes a private repository with trusted workflow authors.
-3. Confirm both `.env` files exist, have different nonempty tokens and mode
-   0600. Keep your existing host/port and storage settings; the container launch
-   overrides the internal listener to `0.0.0.0:8000`. Clients continue using
+3. Confirm both `.env` files exist, have different strong random tokens and mode
+   0600. Generate one with `python3 -c 'import secrets; print(secrets.token_urlsafe(32))'`.
+   Keep your existing host/port and storage settings; the container launch
+   explicitly overrides the internal listener to `0.0.0.0:8000` because a
+   published container port cannot reach a listener bound only to container
+   localhost. Restrict the host ports with the Pi firewall or a private network;
+   do not expose plain HTTP to an untrusted network. Clients continue using
    `<DEV_ENDPOINT>/mcp` and `<PROD_ENDPOINT>/mcp`.
 4. Confirm the GHCR package inherits repository access, or grant this repository
    Actions access to the package. Workflows use short-lived `GITHUB_TOKEN`
@@ -96,6 +102,17 @@ GitHub repository settings, or replace the existing systemd services.
    deploy dev** from `main` to bootstrap dev.
 6. Test dev's tools and inspect the successful deployment's digest. Then run
    **Promote image to production** from `main`, supplying that full image digest.
+
+## Token rotation and recovery
+
+Tokens are loaded only from the mode-0600 environment file passed to Docker;
+they are not in the image, deployment state, workflow artifacts, or server
+responses. To rotate one environment, generate a new token in its private env
+file, keep the file mode at 0600, and restart/redeploy that environment. Update
+the MCP client environment at the same time. The old token stops working as
+soon as the new container starts. If a token is lost, replace it with a newly
+generated token rather than attempting to recover it from logs or images; the
+server intentionally does not print or return token values.
 
 For the first migration of each environment, the deployment script starts a
 candidate without exposing a host port and runs an authenticated MCP

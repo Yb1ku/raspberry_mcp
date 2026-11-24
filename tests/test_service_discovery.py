@@ -1,5 +1,6 @@
 """Discovery must describe stopped containers and never imply authorization."""
 
+import os
 import unittest
 from datetime import datetime, timezone
 from unittest.mock import patch
@@ -9,6 +10,8 @@ from raspberry_mcp.tools.services import _discover_services, _service_info
 
 class ServiceDiscoveryTests(unittest.TestCase):
     def setUp(self):
+        os.environ["RASPBERRY_MCP_ENABLED_ACTIONS"] = "start,stop,restart"
+        os.environ["RASPBERRY_MCP_ALLOWED_SERVICES"] = "jellyfin"
         self.now = datetime(2026, 10, 23, 11, tzinfo=timezone.utc)
         self.container = {
             "id": "abc123", "name": "/jellyfin", "image": "jellyfin/jellyfin",
@@ -16,6 +19,10 @@ class ServiceDiscoveryTests(unittest.TestCase):
             "started_at": "2026-10-23T10:00:00.000000000Z",
             "network_mode": "host", "ports": None,
         }
+
+    def tearDown(self):
+        os.environ.pop("RASPBERRY_MCP_ENABLED_ACTIONS", None)
+        os.environ.pop("RASPBERRY_MCP_ALLOWED_SERVICES", None)
 
     def test_running_container_elapsed_time_and_configured_actions(self):
         service = _service_info(self.container, self.now)

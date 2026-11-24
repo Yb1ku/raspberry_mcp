@@ -13,6 +13,10 @@ from raspberry_mcp.tools.service_actions import (
 
 
 class ServiceActionTests(unittest.TestCase):
+    def setUp(self):
+        os.environ["RASPBERRY_MCP_ENABLED_ACTIONS"] = "start,stop,restart"
+        os.environ["RASPBERRY_MCP_ALLOWED_SERVICES"] = "jellyfin"
+
     def tearDown(self):
         os.environ.pop("RASPBERRY_MCP_ENABLED_ACTIONS", None)
         os.environ.pop("RASPBERRY_MCP_ALLOWED_SERVICES", None)
@@ -60,6 +64,7 @@ class ServiceActionTests(unittest.TestCase):
     @patch("raspberry_mcp.tools.service_actions.inspect_service")
     @patch("raspberry_mcp.tools.service_actions.run_docker")
     def test_missing_service_propagates_a_docker_error(self, run, inspect):
+        os.environ["RASPBERRY_MCP_ALLOWED_SERVICES"] = "jellyfin,missing"
         inspect.side_effect = ValueError("No such container: missing")
 
         with self.assertRaisesRegex(ValueError, "No such container"):
@@ -137,6 +142,14 @@ class ServiceActionTests(unittest.TestCase):
             _run_lifecycle_action("jellyfin", "stop")
         with self.assertRaisesRegex(ValueError, "not allowed"):
             _run_lifecycle_action("qbittorrent", "start")
+
+    def test_missing_policy_denies_lifecycle_actions_by_default(self):
+        os.environ.pop("RASPBERRY_MCP_ENABLED_ACTIONS")
+        os.environ.pop("RASPBERRY_MCP_ALLOWED_SERVICES")
+        self.assertEqual(enabled_actions(), [])
+        self.assertEqual(allowed_actions_for_service("jellyfin"), [])
+        with self.assertRaisesRegex(ValueError, "not allowed"):
+            _run_lifecycle_action("jellyfin", "start")
 
     def test_unknown_configured_action_is_rejected(self):
         os.environ["RASPBERRY_MCP_ENABLED_ACTIONS"] = "start,exec"

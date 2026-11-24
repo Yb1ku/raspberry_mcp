@@ -4,20 +4,16 @@ import os
 
 import uvicorn
 
+from raspberry_mcp.auth import TOKEN_ENV_VAR, validate_token
 from raspberry_mcp.server import create_app
 from raspberry_mcp.host import configure_host_metrics
 
 
-TOKEN_ENV_VAR = "RASPBERRY_MCP_TOKEN"
-
-
 def main() -> None:
-    token = os.environ.get(TOKEN_ENV_VAR, "")
-    if not token.strip():
-        raise SystemExit(
-            f"Missing required environment variable {TOKEN_ENV_VAR}. "
-            "Set it to a long, random secret before starting the server."
-        )
+    try:
+        token = validate_token(os.environ.get(TOKEN_ENV_VAR))
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from None
 
     host = os.environ.get("RASPBERRY_MCP_HOST", "127.0.0.1")
     try:

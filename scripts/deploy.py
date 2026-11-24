@@ -12,6 +12,8 @@ import subprocess
 import time
 from datetime import datetime, timezone
 
+from raspberry_mcp.auth import TOKEN_ENV_VAR, validate_token
+
 
 def run(*args: str, check: bool = True) -> subprocess.CompletedProcess:
     return subprocess.run(args, check=check, text=True, capture_output=True)
@@ -116,11 +118,14 @@ def deploy(
     env_file = env_dir / f"{target}.env"
     if not env_file.is_file() or env_file.stat().st_mode & 0o077:
         raise ValueError(f"Expected a private (0600) environment file: {env_file}")
-    if not any(
-        line.startswith("RASPBERRY_MCP_TOKEN=") and line.partition("=")[2].strip()
+    token_lines = [
+        line.partition("=")[2]
         for line in env_file.read_text().splitlines()
-    ):
-        raise ValueError("Missing MCP token in environment file")
+        if line.startswith(f"{TOKEN_ENV_VAR}=")
+    ]
+    if len(token_lines) != 1:
+        raise ValueError(f"Expected exactly one {TOKEN_ENV_VAR} in environment file")
+    validate_token(token_lines[0])
 
     state_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     with (state_dir / "deploy.lock").open("a") as lock:
