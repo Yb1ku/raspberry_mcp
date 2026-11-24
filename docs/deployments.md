@@ -13,7 +13,7 @@ client contract.
 
 ## Workflows
 
-- **Tests** runs unit tests and a container startup/authentication probe on
+- **Pull request checks** runs unit tests and a container startup/authentication probe on
   GitHub-hosted runners for pull requests. It never uses the Pi runner.
 - **Build image and deploy dev** runs after pushes to `main` (including merges),
   or manually on `main`. It tests the source, builds `linux/arm64`, and pushes
@@ -30,6 +30,28 @@ client contract.
   another deployment. Superseded dev builds are skipped when their commit is
   no longer the head of `main`. GitHub may coalesce pending jobs; this is a
   latest-main test environment, not a queue guaranteeing a deploy for every SHA.
+
+### Required pull-request checks
+
+The pull-request workflow is named **Pull request checks** and exposes these
+stable job checks:
+
+- `Python unit tests`
+- `Container startup and authentication`
+
+Both jobs must be configured as required status checks for the `main` branch.
+In **Settings → Branches → Branch protection rules** (or the ruleset covering
+`main`), enable the pull-request requirement and select both checks by their
+exact names. Require branches to be up to date before merging if the repository
+policy needs the checks to run against the merge result. Do not select the
+post-merge deployment workflow as a PR merge gate: deployment is intentionally
+separate from validation.
+
+To verify the setting, open a test PR and confirm both checks appear and must
+pass before the merge button is enabled. The repository API endpoint
+`GET /repos/Yb1ku/raspberry_mcp/branches/main/protection` can also be used by
+an authenticated owner; a successful response should list both contexts under
+`required_status_checks.contexts`.
 
 ## Pi layout
 

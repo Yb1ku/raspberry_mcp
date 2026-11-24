@@ -1,4 +1,4 @@
-name: Tests
+name: Pull request checks
 
 on:
   pull_request:
@@ -7,9 +7,10 @@ permissions:
   contents: read
 
 jobs:
-  test:
-    name: Run tests
+  unit-tests:
+    name: Python unit tests
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Check out repository
@@ -31,8 +32,8 @@ jobs:
       - name: Run tests
         run: uv run python -m unittest discover -s tests -v
 
-  container:
-    name: Container startup and MCP authentication
+  container-smoke:
+    name: Container startup and authentication
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -52,6 +53,21 @@ jobs:
             sleep 2
           done
           exit 1
+      - name: Verify unauthenticated requests are rejected
+        run: |
+          docker exec raspberry-mcp-ci python - <<'PY'
+          import urllib.error
+          import urllib.request
+
+          request = urllib.request.Request("http://127.0.0.1:8000/mcp")
+          try:
+              urllib.request.urlopen(request, timeout=5)
+          except urllib.error.HTTPError as error:
+              if error.code != 401:
+                  raise SystemExit(f"expected HTTP 401, got HTTP {error.code}")
+          else:
+              raise SystemExit("expected unauthenticated request to return HTTP 401")
+          PY
       - name: Stop smoke-test container
         if: always()
         run: docker rm -f raspberry-mcp-ci || true
