@@ -15,6 +15,8 @@ first-time activation, promotion and checking the currently running version.
 See [the diagnostic contract and Pi verification guide](docs/diagnostics.md)
 for the read-only MCP tools, response shapes, limits, and the MVP acceptance
 checklist.
+See [the CYE-02 Raspberry validation evidence](docs/cye-02-validation.md) for
+the latest live deployment check and the lifecycle-control safety block.
 
 ## Run locally
 
