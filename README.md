@@ -1,7 +1,32 @@
 # Raspberry MCP
 
-MCP server for controlling and monitoring the Raspberry Pi. The server uses
-Streamable HTTP and requires a bearer token for every HTTP request.
+<p align="center">
+  <img src="assets/raspberry-mcp-logo.jpeg" alt="Raspberry MCP logo" width="260">
+</p>
+
+MCP server for securely monitoring and controlling a Raspberry Pi from an
+Agent. It uses Streamable HTTP and requires a bearer token for every HTTP
+request.
+
+## Current status
+
+The MVP is operational and the main workflows are implemented:
+
+- Authenticated diagnostics for host metrics, storage, service discovery,
+  status, logs and resource usage.
+- Guarded `start`, `stop` and `restart` actions with explicit service
+  allowlists, safe no-ops and post-action state verification.
+- ARM64 image builds and deployment to development, with manual production
+  promotion and rollback by immutable image digest.
+- Remote Agent access through an authenticated SSH local tunnel. The MCP stays
+  on Raspberry loopback and is not published directly to the LAN or Internet.
+- Reproducible validation of authentication, MCP protocol behavior, service
+  errors, canary recovery and idempotence. See the [EVA-01 evaluation](docs/eva-01-evaluation.md)
+  and its [execution results](docs/eva-01-results-2026-11-25.md).
+
+The automated test suite is run in CI and covers authentication, diagnostics,
+Docker-backed service operations, deployment safety, Raspberry discovery and
+remote tunneling.
 
 ## Development and production deployments
 
@@ -20,6 +45,10 @@ same-network transport, host identity verification, IP changes and failure
 handling, including limited Raspberry discovery and explicit pairing.
 See [the CYE-02 Raspberry validation evidence](docs/cye-02-validation.md) for
 the latest live deployment check and the lifecycle-control safety block.
+
+See [the EVA-01 evaluation](docs/eva-01-evaluation.md) for the incident catalog,
+comparison method and limitations, and [the recorded execution results](docs/eva-01-results-2026-11-25.md)
+for the canary measurements.
 
 ## Run locally
 
@@ -62,12 +91,19 @@ the server's environment. These may be different environments even when both
 processes run on the same Pi. Keep the credential out of checked-in project
 configuration.
 
-This initial shared-token authentication does not identify individual clients
-or provide per-tool permissions. Those can be added with OAuth when the server
-reaches MVP. For container deployments, the launcher explicitly sets the
-container listener to `0.0.0.0` so a published host port works; use a private
-firewall or encrypted/private network and do not publish the port to an
-untrusted network.
+The current shared-token authentication identifies the MCP credential, but does
+not identify individual clients or provide per-tool permissions. Stronger
+authorization, secret handling and audit controls remain planned work. For
+container deployments, the launcher explicitly sets the container listener to
+`0.0.0.0` so a published host port works; use a private firewall or
+encrypted/private network and do not publish the port to an untrusted network.
+
+## Next planned work
+
+The remaining roadmap focuses on threat modeling, platform hardening, semantic
+incident operations, provenance/rollback improvements and a final utility
+reevaluation. These items are tracked in the project's Kanvas board and are
+intentionally separate from the operational MVP described above.
 
 ## Read-only tools
 
