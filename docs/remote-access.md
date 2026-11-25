@@ -9,6 +9,50 @@ identity through the SSH host key in `~/.ssh/known_hosts`. The MCP bearer token
 is still required at the forwarded endpoint and is supplied through the
 Agent's environment, never through this repository or command arguments.
 
+## Discover a Raspberry
+
+`scripts/discover_raspberry_mcp.py` performs limited local discovery through
+the `_raspberry-mcp._tcp` mDNS service. An announcement is only a candidate:
+it must contain a stable peer ID and an advertised SSH fingerprint. Discovery
+never selects a peer, changes SSH configuration, or sends a Bearer token.
+
+```sh
+uv run python scripts/discover_raspberry_mcp.py discover
+```
+
+Review the candidates and verify the selected fingerprint through a trusted
+out-of-band channel. Pair only after that human confirmation:
+
+```sh
+uv run python scripts/discover_raspberry_mcp.py pair \
+  --id pi-a --host pi-a.local --address 192.168.1.50 --port 22 \
+  --fingerprint 'SHA256:...' --confirm-fingerprint 'SHA256:...'
+```
+
+Pairing re-reads the live Ed25519 SSH key with `ssh-keyscan`, compares its
+derived fingerprint exactly, and stores only peer metadata in
+`~/.config/raspberry-mcp/peers.json` with mode `0600`. It stores no token or
+private key. On a later discovery, the same peer ID and fingerprint may have a
+new address; update the local SSH alias/hostname only after the same identity
+check. A changed fingerprint is an identity failure, not an IP change.
+
+The Raspberry's mDNS advertisement must include `id=<stable-id>` and
+`ssh_fingerprint=SHA256:<ed25519-host-key-fingerprint>`. Do not advertise a
+Bearer token. If Avahi is unavailable, use the preconfigured SSH alias from
+the one-time setup; do not broaden discovery to arbitrary LAN hosts.
+
+The reproducible activation command is run from this checkout by an authorized
+operator:
+
+```sh
+uv run python scripts/activate_raspberry_mdns.py pi5
+```
+
+It reads the Raspberry hostname and SSH host-key fingerprint remotely, installs
+`/etc/avahi/services/raspberry-mcp.service` with root ownership and mode `0644`,
+then reloads Avahi and checks that it is active. The service is persistent and
+contains no bearer token or private key.
+
 ## One-time host setup
 
 Use a stable SSH config alias rather than an IP in Agent configuration. The
@@ -65,14 +109,20 @@ the token loaded by the Raspberry MCP deployment. Do not put it in `config.toml`
 - **Bearer token rejected:** HTTP 401 means the transport is up but the MCP
   credential is wrong or stale. Rotate/update the private runtime secret through
   the existing deployment procedure; never print or commit the token.
+- **Identity unknown:** discard the candidate and do not add it to
+  `known_hosts` or the paired-peer store until its fingerprint is confirmed.
+- **Pi powered off:** discovery returns no usable candidate; retain the last
+  paired metadata but do not retry lifecycle actions automatically.
 
 ## Safe verification
 
-The command construction is covered by `tests/test_remote_tunnel.py`. A live
-check is intentionally environment-specific:
+The command construction and discovery parsing are covered by
+`tests/test_remote_tunnel.py` and `tests/test_discover_raspberry_mcp.py`. A
+live check is intentionally environment-specific:
 
 ```sh
 ssh -o BatchMode=yes -o StrictHostKeyChecking=yes pi5 true
+uv run python scripts/discover_raspberry_mcp.py discover
 uv run python scripts/raspberry_mcp_tunnel.py
 curl --fail --silent --show-error \
   -H "Authorization: Bearer ${RASPBERRY_MCP_TOKEN}" \

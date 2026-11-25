@@ -17,7 +17,7 @@ for the read-only MCP tools, response shapes, limits, and the MVP acceptance
 checklist.
 See [the remote Agent access runbook](docs/remote-access.md) for the supported
 same-network transport, host identity verification, IP changes and failure
-handling.
+handling, including limited Raspberry discovery and explicit pairing.
 See [the CYE-02 Raspberry validation evidence](docs/cye-02-validation.md) for
 the latest live deployment check and the lifecycle-control safety block.
 
