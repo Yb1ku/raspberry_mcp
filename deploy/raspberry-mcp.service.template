@@ -1,0 +1,9 @@
+<service-group>
+  <name replace-wildcards="yes">Raspberry MCP (%h)</name>
+  <service>
+    <type>_raspberry-mcp._tcp</type>
+    <port>22</port>
+    <txt-record>id={peer_id}</txt-record>
+    <txt-record>ssh_fingerprint={ssh_fingerprint}</txt-record>
+  </service>
+</service-group>
