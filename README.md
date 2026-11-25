@@ -15,6 +15,9 @@ first-time activation, promotion and checking the currently running version.
 See [the diagnostic contract and Pi verification guide](docs/diagnostics.md)
 for the read-only MCP tools, response shapes, limits, and the MVP acceptance
 checklist.
+See [the remote Agent access runbook](docs/remote-access.md) for the supported
+same-network transport, host identity verification, IP changes and failure
+handling.
 See [the CYE-02 Raspberry validation evidence](docs/cye-02-validation.md) for
 the latest live deployment check and the lifecycle-control safety block.
 
@@ -36,21 +39,21 @@ neither the token nor its value is included in that error. Requests without a
 matching `Authorization: Bearer <token>` header receive HTTP 401 without
 echoing credentials.
 
-To accept connections from another device on a trusted network, set
-`RASPBERRY_MCP_HOST` to the Pi's private network address (or `0.0.0.0`) and
-optionally set `RASPBERRY_MCP_PORT`. Do not expose plain HTTP to an untrusted
-network; use HTTPS or a private encrypted network such as Tailscale.
+For remote Agent access, use the documented SSH local-forward procedure rather
+than publishing the MCP port. The default listener remains on loopback; only
+change `RASPBERRY_MCP_HOST` for a separately reviewed deployment design.
 
 ## Connect Codex
 
 Configure Codex's HTTP MCP server URL as `http://127.0.0.1:8000/mcp` when
-Codex runs on the Pi. For a client on another device, use the Pi's reachable
-private address instead. In Codex's local `config.toml`, use its environment
+Codex runs on the Pi. For a client on another device, first start the SSH
+tunnel from [the remote access runbook](docs/remote-access.md), then use the
+local forwarded URL below. In Codex's local `config.toml`, use its environment
 variable option so the token itself is not stored in the file:
 
 ```toml
 [mcp_servers.raspberry_pi]
-url = "http://127.0.0.1:8000/mcp"
+url = "http://127.0.0.1:18000/mcp"
 bearer_token_env_var = "RASPBERRY_MCP_TOKEN"
 ```
 
